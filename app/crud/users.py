@@ -1,8 +1,8 @@
 from sqlalchemy import and_, func
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from .models import User
-from .schemas import UserCreate, UserUpdate, PreferencesUpdate, UserFilters
+from app.models.users import User
+from app.schemas.users import UserCreate, UserUpdate, PreferencesUpdate, UserFilters
 
 
 async def get_user_by_telegram_id(session: AsyncSession, telegram_id: int):

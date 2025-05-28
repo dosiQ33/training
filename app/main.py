@@ -1,9 +1,10 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 
-from app.database import engine
+from app.core.database import engine
 from app import models
 from app.routers import users
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -12,6 +13,7 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(models.Base.metadata.create_all)
     yield
     # Shutdown logic (optional)
+
 
 app = FastAPI(
     title="User CRUD API",
@@ -23,12 +25,14 @@ app = FastAPI(
 # Include user router with API version prefix
 app.include_router(users.router, prefix="/api/v1")
 
+
 @app.get("/")
 async def root():
     """
     Welcome endpoint for quick testing.
     """
     return {"message": "Welcome to User CRUD API"}
+
 
 @app.get("/health")
 async def health_check():

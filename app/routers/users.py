@@ -3,8 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 
-from app.database import get_session
-from app.schemas import (
+from app.core.database import get_session
+from app.schemas.users import (
     UserCreate,
     UserUpdate,
     UserRead,
@@ -13,7 +13,7 @@ from app.schemas import (
     UserFilters,
 )
 
-from app.crud import (
+from app.crud.users import (
     get_user_by_id,
     get_user_by_telegram_id,
     get_users_paginated,
