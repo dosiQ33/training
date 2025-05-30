@@ -35,9 +35,6 @@ async def get_users_paginated(
         if filters.phone_number:
             conditions.append(User.phone_number.ilike(f"%{filters.phone_number}%"))
 
-        if filters.role:
-            conditions.append(User.role == filters.role)
-
         if filters.username:
             conditions.append(User.username.ilike(f"%{filters.username}%"))
 

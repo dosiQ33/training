@@ -16,7 +16,6 @@ class UserBase(BaseModel):
     last_name: Optional[str] = None
     phone_number: Optional[str] = None
     username: Optional[str] = None
-    role: Optional[str] = None
     preferences: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
@@ -29,7 +28,6 @@ class UserUpdate(BaseModel):
     last_name: Optional[str] = None
     phone_number: Optional[str] = None
     username: Optional[str] = None
-    role: Optional[str] = None
 
 
 class UserRead(UserCreate):
@@ -45,7 +43,6 @@ class UserFilters(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     phone_number: Optional[str] = None
-    role: Optional[str] = None
     username: Optional[str] = None
 
 

@@ -58,7 +58,6 @@ async def get_users_list(
     phone_number: Optional[str] = Query(
         None, description="Filter by phone number (partial match)"
     ),
-    role: Optional[str] = Query(None, description="Filter by role (exact match)"),
     username: Optional[str] = Query(
         None, description="Filter by username (partial match)"
     ),
@@ -71,12 +70,11 @@ async def get_users_list(
         first_name=first_name,
         last_name=last_name,
         phone_number=phone_number,
-        role=role,
         username=username,
     )
 
     # Если все фильтры пустые, передаем None
-    if not any([first_name, last_name, phone_number, role, username]):
+    if not any([first_name, last_name, phone_number, username]):
         filters = None
 
     users, total = await get_users_paginated(db, skip=skip, limit=size, filters=filters)
