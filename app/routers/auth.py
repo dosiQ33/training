@@ -21,6 +21,7 @@ async def get_me(current_user: Dict[str, Any] = Depends(get_current_user)):
         "last_name": current_user.get("last_name"),
         "username": current_user.get("username"),
         "language_code": current_user.get("language_code"),
+        "photo_url": current_user.get("photo_url"),
     }
 
 

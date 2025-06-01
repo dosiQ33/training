@@ -1,9 +1,10 @@
 import math
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from app.core.database import get_session
+from app.core.dependencies import get_current_user
 from app.schemas.users import (
     UserCreate,
     UserUpdate,
@@ -27,13 +28,18 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.post("/", response_model=UserRead, status_code=status.HTTP_201_CREATED)
-async def create_new_user(user: UserCreate, db: AsyncSession = Depends(get_session)):
-    existing = await get_user_by_telegram_id(db, user.telegram_id)
+async def create_new_user(
+    user: UserCreate,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+    db: AsyncSession = Depends(get_session),
+):
+    existing = await get_user_by_telegram_id(db, current_user.get("id"))
     if existing:
         raise HTTPException(
-            status_code=409, detail="User with this telegram_id already exists."
+            status_code=409,
+            detail=f"User with this telegram_id {current_user.get("id")} already exists.",
         )
-    return await create_user(db, user)
+    return await create_user(db, user, current_user)
 
 
 @router.get("/{user_id}", response_model=UserRead)
@@ -96,24 +102,26 @@ async def get_user_by_telegram_id_route(
     return user
 
 
-@router.put("/{telegram_id}", response_model=UserRead)
+@router.put("/", response_model=UserRead)
 async def update_user_by_telegram_id(
-    telegram_id: int, user: UserUpdate, db: AsyncSession = Depends(get_session)
+    user: UserUpdate,
+    db: AsyncSession = Depends(get_session),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
-    db_user = await update_user(db, telegram_id, user)
+    db_user = await update_user(db, current_user.get("id"), user)
     if db_user is None:
         raise HTTPException(status_code=404, detail="User not found")
     return db_user
 
 
-@router.put("/{telegram_id}/preferences", response_model=UserRead)
+@router.put("/preferences", response_model=UserRead)
 async def update_user_preferences_route(
-    telegram_id: int,
     preferences: PreferencesUpdate,
     db: AsyncSession = Depends(get_session),
+    current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     """Update user preferences (language, dark_mode, notifications, timezone)"""
-    db_user = await update_user_preferences(db, telegram_id, preferences)
+    db_user = await update_user_preferences(db, preferences, current_user.get("id"))
     if db_user is None:
         raise HTTPException(status_code=404, detail="User not found")
     return db_user

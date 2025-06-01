@@ -16,11 +16,13 @@ class UserBase(BaseModel):
     last_name: Optional[str] = None
     phone_number: Optional[str] = None
     username: Optional[str] = None
+    photo_url: Optional[str] = None
     preferences: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
-class UserCreate(UserBase):
-    pass
+class UserCreate(BaseModel):
+    phone_number: Optional[str] = None
+    preferences: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 
 class UserUpdate(BaseModel):
@@ -30,7 +32,7 @@ class UserUpdate(BaseModel):
     username: Optional[str] = None
 
 
-class UserRead(UserCreate):
+class UserRead(UserBase):
     id: int
     created_at: datetime
     updated_at: datetime

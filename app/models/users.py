@@ -10,10 +10,10 @@ class User(Base):
     telegram_id = Column(Integer, unique=True, index=True)
     first_name = Column(String(50), nullable=False)
     last_name = Column(String(50), nullable=True)
-    phone_number = Column(String(30), nullable=True)
+    phone_number = Column(String(30), nullable=False)
     username = Column(String(64), nullable=True, index=True)
     preferences = Column(JSON, nullable=True, default={})
-    avatar_url = Column(String(256), nullable=True)
+    photo_url = Column(String(256), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

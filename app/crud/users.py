@@ -1,8 +1,14 @@
+from typing import Any, Dict
 from sqlalchemy import and_, func
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.users import User
-from app.schemas.users import UserCreate, UserUpdate, PreferencesUpdate, UserFilters
+from app.schemas.users import (
+    UserCreate,
+    UserUpdate,
+    PreferencesUpdate,
+    UserFilters,
+)
 
 
 async def get_user_by_telegram_id(session: AsyncSession, telegram_id: int):
@@ -56,22 +62,30 @@ async def get_users_paginated(
     return users, total
 
 
-async def create_user(session: AsyncSession, user: UserCreate):
+async def create_user(
+    session: AsyncSession,
+    user: UserCreate,
+    current_user: Dict[str, Any],
+):
     default_preferences = {
-        "language": "ru",
+        "language": current_user.get("language_code", None),
         "dark_mode": False,
         "notifications": True,
         "timezone": "UTC+5",
     }
 
-    user_data = user.model_dump()
-    if not user_data.get("preferences"):
-        user_data["preferences"] = default_preferences
-    else:
-        # Merge with defaults
-        merged_preferences = {**default_preferences, **user_data["preferences"]}
-        user_data["preferences"] = merged_preferences
+    user_preferences = user.preferences or {}
+    merged_preferences = {**default_preferences, **user_preferences}
 
+    user_data = {
+        "telegram_id": current_user.get("id"),
+        "first_name": current_user.get("first_name"),
+        "last_name": current_user.get("last_name", None),
+        "username": current_user.get("username", None),
+        "phone_number": user.phone_number,
+        "photo_url": current_user.get("photo_url", None),
+        "preferences": merged_preferences,
+    }
     db_user = User(**user_data)
     session.add(db_user)
     await session.commit()
@@ -94,7 +108,7 @@ async def update_user(session: AsyncSession, telegram_id: int, user: UserUpdate)
 
 
 async def update_user_preferences(
-    session: AsyncSession, telegram_id: int, preferences: PreferencesUpdate
+    session: AsyncSession, preferences: PreferencesUpdate, telegram_id: int
 ):
     db_user = await get_user_by_telegram_id(session, telegram_id)
     if not db_user:
