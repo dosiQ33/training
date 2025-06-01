@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 
 from app.core.database import engine
 from app import models
-from app.routers import users
+from app.routers import users, auth
 
 
 @asynccontextmanager
@@ -16,27 +16,33 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="User CRUD API",
-    description="A simple CRUD API for user management",
+    title="Training API with Telegram Auth",
+    description="A CRUD API with Telegram Web App authentication",
     version="1.0.0",
     lifespan=lifespan,
 )
 
-# Include user router with API version prefix
+# Include routers with API version prefix
 app.include_router(users.router, prefix="/api/v1")
+app.include_router(auth.router, prefix="/api/v1")
 
 
 @app.get("/")
 async def root():
     """
-    Welcome endpoint for quick testing.
+    Welcome endpoint
     """
-    return {"message": "Welcome to User CRUD API"}
+    return {
+        "message": "Training Mini App API",
+        "version": "1.0.0",
+        "docs": "/docs",
+        "health": "/health",
+    }
 
 
 @app.get("/health")
 async def health_check():
     """
-    Basic health check endpoint.
+    Health check endpoint
     """
-    return {"status": "healthy"}
+    return {"status": "healthy", "service": "training-mini-app-api"}
