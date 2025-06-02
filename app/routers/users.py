@@ -1,9 +1,10 @@
 import math
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Any, Dict, Optional
 
 from app.core.database import get_session
+from app.core.limits import limiter
 from app.core.dependencies import get_current_user
 from app.schemas.users import (
     UserCreate,
@@ -28,7 +29,9 @@ router = APIRouter(prefix="/users", tags=["users"])
 
 
 @router.post("/", response_model=UserRead, status_code=status.HTTP_201_CREATED)
+@limiter.limit("5/minute")
 async def create_new_user(
+    request: Request,
     user: UserCreate,
     current_user: Dict[str, Any] = Depends(get_current_user),
     db: AsyncSession = Depends(get_session),
@@ -43,7 +46,10 @@ async def create_new_user(
 
 
 @router.get("/{user_id}", response_model=UserRead)
-async def get_user(user_id: int, db: AsyncSession = Depends(get_session)):
+@limiter.limit("30/minute")
+async def get_user(
+    request: Request, user_id: int, db: AsyncSession = Depends(get_session)
+):
     user = await get_user_by_id(db, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
@@ -51,7 +57,9 @@ async def get_user(user_id: int, db: AsyncSession = Depends(get_session)):
 
 
 @router.get("/", response_model=UserListResponse)
+@limiter.limit("20/minute")
 async def get_users_list(
+    request: Request,
     page: int = Query(1, ge=1, description="Page number starting from 1"),
     size: int = Query(10, ge=1, le=100, description="Number of items per page"),
     # Фильтры как query параметры
@@ -93,8 +101,9 @@ async def get_users_list(
 
 
 @router.get("/by-telegram-id/{telegram_id}", response_model=UserRead)
+@limiter.limit("30/minute")
 async def get_user_by_telegram_id_route(
-    telegram_id: int, db: AsyncSession = Depends(get_session)
+    request: Request, telegram_id: int, db: AsyncSession = Depends(get_session)
 ):
     user = await get_user_by_telegram_id(db, telegram_id)
     if user is None:
@@ -103,7 +112,9 @@ async def get_user_by_telegram_id_route(
 
 
 @router.put("/", response_model=UserRead)
+@limiter.limit("10/minute")
 async def update_user_by_telegram_id(
+    request: Request,
     user: UserUpdate,
     db: AsyncSession = Depends(get_session),
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -115,7 +126,9 @@ async def update_user_by_telegram_id(
 
 
 @router.put("/preferences", response_model=UserRead)
+@limiter.limit("10/minute")
 async def update_user_preferences_route(
+    request: Request,
     preferences: PreferencesUpdate,
     db: AsyncSession = Depends(get_session),
     current_user: Dict[str, Any] = Depends(get_current_user),
@@ -128,8 +141,12 @@ async def update_user_preferences_route(
 
 
 @router.get("/{telegram_id}/preferences/{preference_key}")
+@limiter.limit("10/minute")
 async def get_user_preference_route(
-    telegram_id: int, preference_key: str, db: AsyncSession = Depends(get_session)
+    request: Request,
+    telegram_id: int,
+    preference_key: str,
+    db: AsyncSession = Depends(get_session),
 ):
     """Get specific user preference by key"""
     preference_value = await get_user_preference(db, telegram_id, preference_key)

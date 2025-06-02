@@ -86,11 +86,15 @@ async def create_user(
         "photo_url": current_user.get("photo_url", None),
         "preferences": merged_preferences,
     }
-    db_user = User(**user_data)
-    session.add(db_user)
-    await session.commit()
-    await session.refresh(db_user)
-    return db_user
+    try:
+        db_user = User(**user_data)
+        session.add(db_user)
+        await session.commit()
+        await session.refresh(db_user)
+        return db_user
+    except:
+        await session.rollback()
+        raise
 
 
 async def update_user(session: AsyncSession, telegram_id: int, user: UserUpdate):

@@ -1,8 +1,10 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
+from slowapi.errors import RateLimitExceeded
 
 from app.core.database import engine
-from app import models
+from app.models import Base
+from app.core.limits import limiter, rate_limit_handler
 from app.routers import users, auth
 
 
@@ -10,7 +12,7 @@ from app.routers import users, auth
 async def lifespan(app: FastAPI):
     # Startup logic: create tables if they don't exist
     async with engine.begin() as conn:
-        await conn.run_sync(models.Base.metadata.create_all)
+        await conn.run_sync(Base.metadata.create_all)
     yield
     # Shutdown logic (optional)
 
@@ -21,6 +23,12 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+# Add rate limiter to app state
+app.state.limiter = limiter
+
+# Add rate limit exception handler
+app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
 
 # Include routers with API version prefix
 app.include_router(users.router, prefix="/api/v1")

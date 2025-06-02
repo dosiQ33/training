@@ -24,5 +24,5 @@ class User(Base):
         "UserRole",
         back_populates="user",
         cascade="all, delete",
-        lazy="joined",
+        lazy="select",
     )
