@@ -19,6 +19,7 @@ async def get_current_user(
 ) -> Dict[str, Any]:
     """
     Dependency to get current authenticated user from Telegram initData.
+    Returns user data if present, or full auth data if user not in initData.
 
     Usage in Swagger UI:
     1. Click "Authorize" button
@@ -29,10 +30,15 @@ async def get_current_user(
         # The initData comes in credentials.credentials
         init_data = credentials.credentials
 
-        # Authenticate and get user data
-        user_data = telegram_auth.authenticate(init_data)
+        # Authenticate and get full data (may include user, contact, etc.)
+        auth_data = telegram_auth.authenticate(init_data)
 
-        return user_data
+        # For backward compatibility, return user data if present
+        if "user" in auth_data and auth_data["user"]:
+            return auth_data["user"]
+
+        # If no user data but auth was successful, return full auth data
+        return auth_data
 
     except Exception as e:
         raise HTTPException(

@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import json
 import urllib.parse
+from urllib.parse import unquote_plus
 import logging
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
@@ -39,10 +40,17 @@ class TelegramAuth:
                 if len(value) == 1:
                     if key == "user":
                         try:
-                            result[key] = json.loads(value[0])
+                            result[key] = json.loads(unquote_plus(value[0]))
                         except json.JSONDecodeError:
                             raise TelegramAuthError(
                                 "Invalid user data format", "INVALID_USER_DATA"
+                            )
+                    elif key == "contact":
+                        try:
+                            result[key] = json.loads(unquote_plus(value[0]))
+                        except json.JSONDecodeError:
+                            raise TelegramAuthError(
+                                "Invalid contact data format", "INVALID_CONTACT_DATA"
                             )
                     elif key in ["auth_date", "query_id"]:
                         result[key] = value[0]
@@ -113,6 +121,64 @@ class TelegramAuth:
         except (ValueError, TypeError):
             return False
 
+    def validate_telegram_query(self, raw_query: str) -> Dict[str, Any]:
+        """
+        Validate *any* Telegram Mini-App query string
+        (initData or contact) and return a parsed dict.
+        """
+        try:
+            if not raw_query or not raw_query.strip():
+                raise TelegramAuthError("Empty query data", "EMPTY_DATA")
+
+            # Parse query string
+            params = dict(urllib.parse.parse_qsl(raw_query, keep_blank_values=False))
+
+            # Extract and validate hash
+            their_hash = params.pop("hash", None)
+            if not their_hash:
+                raise TelegramAuthError("Hash parameter missing", "NO_HASH")
+
+            # Step 1: build data-check-string
+            data_list = [f"{k}={params[k]}" for k in sorted(params)]
+            data_check_string = "\n".join(data_list)
+
+            # Step 2: calculate our own hash
+            secret_key = hmac.new(
+                b"WebAppData", self.bot_token.encode(), hashlib.sha256
+            ).digest()
+
+            calc_hash = hmac.new(
+                secret_key, data_check_string.encode(), hashlib.sha256
+            ).hexdigest()
+
+            if calc_hash != their_hash:
+                raise TelegramAuthError("Telegram signature mismatch", "INVALID_HASH")
+
+            # Step 3: JSON-decode large fields **after** the verification
+            if "user" in params:
+                try:
+                    params["user"] = json.loads(unquote_plus(params["user"]))
+                except json.JSONDecodeError:
+                    raise TelegramAuthError(
+                        "Invalid user data format", "INVALID_USER_DATA"
+                    )
+
+            if "contact" in params:
+                try:
+                    params["contact"] = json.loads(unquote_plus(params["contact"]))
+                except json.JSONDecodeError:
+                    raise TelegramAuthError(
+                        "Invalid contact data format", "INVALID_CONTACT_DATA"
+                    )
+
+            return params
+
+        except TelegramAuthError:
+            raise
+        except Exception as e:
+            logger.error(f"Query validation error: {str(e)}")
+            raise TelegramAuthError("Query validation failed", "VALIDATION_ERROR")
+
     def authenticate(self, init_data: str) -> Dict[str, Any]:
         """
         Full authentication process with secure error handling
@@ -122,12 +188,8 @@ class TelegramAuth:
             if not init_data or not init_data.strip():
                 raise TelegramAuthError("Authentication data required", "MISSING_DATA")
 
-            # Validate hash
-            if not self.validate_hash(init_data):
-                raise TelegramAuthError("Invalid authentication", "INVALID_HASH")
-
-            # Parse data
-            parsed_data = self.parse_init_data(init_data)
+            # Use the new validation method
+            parsed_data = self.validate_telegram_query(init_data)
 
             # Validate auth_date
             if "auth_date" not in parsed_data:
@@ -138,21 +200,20 @@ class TelegramAuth:
             if not self.validate_auth_date(parsed_data["auth_date"]):
                 raise TelegramAuthError("Authentication expired", "EXPIRED_AUTH")
 
-            # Validate user data
-            if "user" not in parsed_data or not parsed_data["user"]:
-                raise TelegramAuthError("User information missing", "NO_USER_DATA")
+            # Validate user data (if present)
+            if "user" in parsed_data and parsed_data["user"]:
+                user_data = parsed_data["user"]
 
-            user_data = parsed_data["user"]
+                # Validate required user fields
+                required_fields = ["id", "first_name"]
+                for field in required_fields:
+                    if field not in user_data:
+                        raise TelegramAuthError(
+                            "Incomplete user data", "INCOMPLETE_USER_DATA"
+                        )
 
-            # Validate required user fields
-            required_fields = ["id", "first_name"]
-            for field in required_fields:
-                if field not in user_data:
-                    raise TelegramAuthError(
-                        "Incomplete user data", "INCOMPLETE_USER_DATA"
-                    )
-
-            return user_data
+            # Return the complete parsed data (including contact if present)
+            return parsed_data
 
         except TelegramAuthError as e:
             # Log the specific error for debugging but don't expose details
@@ -169,5 +230,44 @@ class TelegramAuth:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Authentication failed",
+                headers={"WWW-Authenticate": "tma"},
+            )
+
+    def authenticate_contact_request(self, init_data: str) -> Dict[str, Any]:
+        """
+        Специальный метод для аутентификации запросов с contact данными
+        """
+        try:
+            # Используем новый валидатор
+            parsed_data = self.validate_telegram_query(init_data)
+
+            # Проверяем наличие contact данных
+            if "contact" not in parsed_data:
+                raise TelegramAuthError("Contact data missing", "NO_CONTACT_DATA")
+
+            contact_data = parsed_data["contact"]
+
+            # Валидируем обязательные поля contact
+            required_contact_fields = ["phone_number", "first_name"]
+            for field in required_contact_fields:
+                if field not in contact_data:
+                    raise TelegramAuthError(
+                        f"Contact field '{field}' missing", "INCOMPLETE_CONTACT_DATA"
+                    )
+
+            return parsed_data
+
+        except TelegramAuthError as e:
+            logger.warning(f"Contact auth failed: {e.error_code} - {e.message}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Contact authentication failed",
+                headers={"WWW-Authenticate": "tma"},
+            )
+        except Exception as e:
+            logger.error(f"Unexpected contact auth error: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Contact authentication failed",
                 headers={"WWW-Authenticate": "tma"},
             )
